@@ -103,6 +103,29 @@ class TagEditor extends React.PureComponent<Props, State> {
     );
   }
 
+  _sortRequests(requests: Array<request>, requestGroups: Array<requestGroup>) {
+    if (!requests.length) {
+      return requests;
+    }
+    const ancestorSortKeys = {};
+    for (const request of requests) {
+      let ancestor = request;
+      const ancestorSortKey = [];
+      do {
+        ancestorSortKey.push(ancestor.metaSortKey);
+        ancestor = requestGroups.find(g => g._id === ancestor.parentId);
+      } while (ancestor !== undefined);
+      ancestorSortKey.reverse();
+      ancestorSortKeys[request._id] = ancestorSortKey;
+    }
+
+    requests.sort((a, b) => {
+      let index = 0;
+      while (ancestorSortKeys[a._id][index] === ancestorSortKeys[b._id][index]) index++;
+      return ancestorSortKeys[a._id][index] < ancestorSortKeys[b._id][index] ? -1 : 1;
+    });
+  }
+
   async _refreshModels(workspace: Workspace) {
     this.setState({ loadingDocs: true });
 
@@ -114,6 +137,9 @@ class TagEditor extends React.PureComponent<Props, State> {
     for (const doc of await db.withDescendants(workspace, models.request.type)) {
       allDocs[doc.type].push(doc);
     }
+
+    // Sort requests using metaSortKey
+    this._sortRequests(allDocs[models.request.type] || [], allDocs[models.requestGroup.type] || []);
 
     this.setState({
       allDocs,
